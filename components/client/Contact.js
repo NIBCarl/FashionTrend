@@ -1,20 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
     ScrollView,
-    KeyboardAvoidingView,
-    Platform,
-    Alert,
-    TextInput,
-    ImageBackground,
-    ActivityIndicator,
-    FlatList,
-    Image
+    Image,
+    Linking
 } from 'react-native';
-import Icon from 'react-native-vector-icons/FontAwesome';
+import Icon from 'react-native-vector-icons/Ionicons';
 import { useFonts } from "expo-font";
 import { IslandMoments_400Regular } from "@expo-google-fonts/island-moments";
 import { Itim_400Regular } from "@expo-google-fonts/itim";
@@ -25,85 +19,61 @@ import Navbar from "../../navigation/navBar";
 import { useNavigation } from '@react-navigation/native';
 import BottomNavBar from '../../navigation/BottomNavBar';
 
-
-
-// ... [imports remain the same]
-
-const Home = () => {
-    const [firstName, setFirstName] = useState('');
-    const [lastName, setLastName] = useState('');
-    const [email, setEmail] = useState('');
-    const [message, setMessage] = useState('');
+const Contact = () => {
     const navigation = useNavigation();
+
+    const handleLinkPress = async (url) => {
+        const supported = await Linking.canOpenURL(url);
+        if (supported) {
+            await Linking.openURL(url);
+        } else {
+            console.warn(`Failed to open URL: ${url}`);
+        }
+    };
 
     return (
         <SafeAreaView style={styles.safeArea}>
             <Navbar />
             <ScrollView contentContainerStyle={styles.container}>
-                <Text style={styles.title}>CONTACT US!</Text>
-                <Text style={styles.subtitle}>
-                    Need to get in touch with us? Either fill out the form with your inquiry or message us on
-                </Text>
-                <Text style={styles.email}>fashiontrend@email.com</Text>
-
+                <Text style={styles.title}>CONTACT US</Text>
                 <Image
                     source={require('../../assets/products/contact_image.png')}
                     style={styles.image}
                 />
+                <Text style={styles.subtitle}>
+                    Get in touch with us through any of the channels below. We're happy to help!
+                </Text>
 
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.formContainer}
-                >
-                    <View style={styles.row}>
-                        <TextInput
-                            placeholder="Firstname"
-                            value={firstName}
-                            onChangeText={setFirstName}
-                            style={styles.inputHalf}
-                            placeholderTextColor="#999"
-                        />
-                        <TextInput
-                            placeholder="Lastname"
-                            value={lastName}
-                            onChangeText={setLastName}
-                            style={styles.inputHalf}
-                            placeholderTextColor="#999"
-                        />
+                <View style={styles.infoSection}>
+                    <TouchableOpacity style={styles.infoItem} onPress={() => handleLinkPress('mailto:support@fashiontrend.com')}>
+                        <Icon name="mail-outline" size={24} color="#ff6a00" style={styles.infoIcon} />
+                        <Text style={styles.infoText}>support@fashiontrend.com</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.infoItem} onPress={() => handleLinkPress('tel:+1234567890')}>
+                        <Icon name="call-outline" size={24} color="#ff6a00" style={styles.infoIcon} />
+                        <Text style={styles.infoText}>+1 (234) 567-890</Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.infoItem}>
+                        <Icon name="location-outline" size={24} color="#ff6a00" style={styles.infoIcon} />
+                        <Text style={styles.infoText}>123 Fashion Ave, New York, NY 10001</Text>
+                    </View>
                     </View>
 
-                    <TextInput
-                        placeholder="Email Address"
-                        value={email}
-                        onChangeText={setEmail}
-                        style={styles.input}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        placeholderTextColor="#999"
-                    />
-
-                    <TextInput
-                        placeholder="What we can help you with?"
-                        value={message}
-                        onChangeText={setMessage}
-                        style={styles.textArea}
-                        multiline
-                        numberOfLines={5}
-                        placeholderTextColor="#999"
-                    />
-
-                    <TouchableOpacity
-                        style={styles.submitBtn}
-                        onPress={() => Alert.alert("Submitted!", "Thank you for reaching out.")}
-                    >
-                        <Text style={styles.submitText}>Submit</Text>
+                <Text style={styles.socialHeader}>Follow Us</Text>
+                <View style={styles.socialIconsContainer}>
+                    <TouchableOpacity onPress={() => handleLinkPress('https://twitter.com/fashiontrend')}>
+                        <Icon name="logo-twitter" size={30} color="#1DA1F2" style={styles.socialIcon} />
                     </TouchableOpacity>
-                </KeyboardAvoidingView>
+                    <TouchableOpacity onPress={() => handleLinkPress('https://instagram.com/fashiontrend')}>
+                        <Icon name="logo-instagram" size={30} color="#C13584" style={styles.socialIcon} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleLinkPress('https://facebook.com/fashiontrend')}>
+                        <Icon name="logo-facebook" size={30} color="#4267B2" style={styles.socialIcon} />
+                    </TouchableOpacity>
+                </View>
             </ScrollView>
-
-            {/* FOLLOW US section remains unchanged */}
-            
-            {/* BottomNavBar remains unchanged */}
             <BottomNavBar navigation={navigation} />
         </SafeAreaView>
     );
@@ -117,89 +87,63 @@ const styles = StyleSheet.create({
     container: {
         padding: 20,
         alignItems: 'center',
+        paddingBottom: 80,
     },
     title: {
-        color: 'red',
-        fontSize: 22,
+        color: '#333',
+        fontSize: 24,
         fontWeight: 'bold',
-        marginBottom: 10,
+        marginBottom: 15,
+        fontFamily: 'TenorSans',
     },
     subtitle: {
-        fontSize: 14,
+        fontSize: 15,
         textAlign: 'center',
-        color: '#444',
-        marginBottom: 6,
-    },
-    email: {
-        fontWeight: 'bold',
-        fontSize: 14,
+        color: '#555',
         marginBottom: 20,
+        paddingHorizontal: 10,
     },
     image: {
-        width: '100%',
-        height: 250,
-        borderRadius: 20,
+        width: '90%',
+        height: 200,
+        borderRadius: 10,
         resizeMode: 'cover',
-        marginBottom: 20,
+        marginBottom: 25,
     },
-    formContainer: {
+    infoSection: {
         width: '100%',
-        backgroundColor: '#f6f6f6',
-        borderRadius: 16,
+        backgroundColor: '#f9f9f9',
+        borderRadius: 8,
         padding: 20,
-        marginTop: 10,
+        marginBottom: 30,
     },
-    row: {
+    infoItem: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 12,
-    },
-    inputHalf: {
-        backgroundColor: '#fff',
-        borderWidth: 1,
-        borderColor: '#ccc',
-        borderRadius: 12,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        width: '48%',
-        fontSize: 14,
-    },
-    input: {
-        backgroundColor: '#fff',
-        borderWidth: 1,
-        borderColor: '#ccc',
-        borderRadius: 12,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        marginBottom: 12,
-        fontSize: 14,
-    },
-    textArea: {
-        backgroundColor: '#fff',
-        borderWidth: 1,
-        borderColor: '#ccc',
-        borderRadius: 12,
-        paddingHorizontal: 14,
-        paddingTop: 14,
-        textAlignVertical: 'top',
-        marginBottom: 16,
-        minHeight: 100,
-        fontSize: 14,
-    },
-    submitBtn: {
-        backgroundColor: '#ff6a00',
-        paddingVertical: 14,
-        borderRadius: 12,
         alignItems: 'center',
-        marginTop: 8,
+        marginBottom: 18,
     },
-    submitText: {
-        color: '#fff',
+    infoIcon: {
+        marginRight: 15,
+    },
+    infoText: {
         fontSize: 16,
-        fontWeight: 'bold',
+        color: '#333',
+        flexShrink: 1,
     },
-
-    // ... rest of your followSection3 & footer styles are unchanged
+    socialHeader: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 15,
+        fontFamily: 'TenorSans',
+    },
+    socialIconsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        width: '60%',
+    },
+    socialIcon: {
+    },
 });
 
-export default Home;
+export default Contact;

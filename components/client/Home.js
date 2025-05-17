@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,8 @@ import {
   ImageBackground,
   ActivityIndicator,
   FlatList,
-  Image
+  Image,
+  Alert
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { useFonts } from "expo-font";
@@ -18,37 +19,12 @@ import { BodoniModa_400Regular } from '@expo-google-fonts/bodoni-moda';
 import { TenorSans_400Regular } from "@expo-google-fonts/tenor-sans";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Navbar from "../../navigation/navBar";
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import BottomNavBar from '../../navigation/BottomNavBar';
 import BuyNowModal from './BuyNowModal';
-const categories = ["All", "Apparel", "Dress", "Tshirt", "Bag"];
-const products = [
-  { id: '1', name: '21WN reversible angora cardigan', price: 'Php 6,000', image: 'https://framerusercontent.com/images/54tqpXnovhmg1DaaTUMYucwnE.png' },
-  { id: '2', name: '21WN reversible angora cardigan', price: 'Php 6,000', image: 'https://assets.lummi.ai/assets/QmP1pRCUUzxYLUrhEyw3CGYEop3a5DKg4CsUv3DTSXM6Tj?auto=format&w=640' },
-  { id: '3', name: '21WN reversible angora cardigan', price: 'Php 6,000', image: 'https://assets.lummi.ai/assets/QmUyBYxXVWaWsctix7VzUcLHR7uhT3wCGg1Vp6bgaRipQs?auto=format&w=640' },
-  { id: '4', name: '21WN reversible angora cardigan', price: 'Php 6,000', image: 'https://assets.lummi.ai/assets/QmPLcQzUcgzL2p6zsJFcWkgXCckfH33Z9d9UonrP5uBK8Y?auto=format&w=640' },
-];
+import { fetchProducts } from '../../src/services/api';
 
-const justForYouData = [
-  {
-    id: '1',
-    image: 'https://cdn.prod.website-files.com/6683c2c927ae0705ccd8ca95/6683df67404199df27db7616_Fashionable%20Male%20Model%20in%20Layered%20Clothing.png',
-    name: 'Harris Tweed Three button Jacket',
-    price: 'Php 6,000',
-  },
-  {
-    id: '2',
-    image: 'https://pic3.zhimg.com/v2-6dc8f69dc267ab9f7539fc26022467cc_1440w.jpg',
-    name: 'Cashmere Jacket',
-    price: 'Php 5,800',
-  },
-  {
-    id: '3',
-    image: 'https://dynamic.zacdn.com/kunv07M_TaflMumKuzBaUY-MEcs=/filters:quality(70):format(webp)/https://static-ph.zacdn.com/p/happy-fridays-0857-5323253-5.jpg',
-    name: 'Urban Trench Coat',
-    price: 'Php 7,500',
-  },
-];
+const categories = ["All", "Apparel", "Dress", "Tshirt", "Bag"];
 
 const hashtags = [
   '#2025', '#spring', '#collection', '#fall',
@@ -73,239 +49,298 @@ const features = [
     text: 'Fast shipping.\nFree on orders over Php 1,000.',
   },
 ];
-const Home = () => {
 
+const Home = () => {
   const navigation = useNavigation();
 
   const [selectedCategory, setSelectedCategory] = useState("All");
-
   const [modalVisible, setModalVisible] = useState(false);
 
+  // State for API data
+  const [products, setProducts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch products from API
+  const loadProducts = async () => {
+    console.log("[Home.js] loadProducts called"); // Log: function entry
+    setIsLoading(true);
+    setError(null);
+    try {
+      // fetchProducts now returns the array directly
+      const productsArray = await fetchProducts();
+      console.log("[Home.js] Response from fetchProducts (Count):", productsArray?.length); // Log: API response
+      
+      // Check if the response is actually an array
+      if (Array.isArray(productsArray)) {
+        setProducts(productsArray);
+        console.log("[Home.js] Products state set successfully"); // Log: State set success
+      } else {
+        // If fetchProducts didn't return an array, something is wrong
+        throw new Error('Invalid data format received from fetchProducts');
+      }
+    } catch (err) {
+      const errorMessage = err.message || 'An unexpected error occurred while fetching products';
+      setError(errorMessage);
+      console.error("[Home.js] Error caught in loadProducts:", err); // Log: Caught exception
+    }
+    setIsLoading(false);
+  };
+
+  // Use useFocusEffect to reload data when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log("[Home.js] useFocusEffect triggered"); // Log: Effect trigger
+      loadProducts();
+    }, [])
+  );
+
+  // Render item for the main product FlatList
+  const renderProductItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => navigation.navigate('ProductDetail', { productId: item.id })}
+    >
+      <Image source={item.image} style={styles.image} resizeMode="cover" />
+      <Text style={styles.productName} numberOfLines={2}>{item.name || 'Product Name'}</Text>
+      <Text style={styles.price}>${item.price?.toFixed(2) || 'Price N/A'}</Text>
+    </TouchableOpacity>
+  );
+
+  // Display loading indicator
+  const renderLoading = () => (
+    <View style={styles.centerStatus}>
+      <ActivityIndicator size="large" color="#8A2BE2" />
+      <Text>Loading Products...</Text>
+    </View>
+  );
+
+  // Display error message
+  const renderError = () => (
+    <View style={styles.centerStatus}>
+      <Text style={styles.errorText}>Error loading products.</Text>
+      <Text style={styles.errorText}>{error}</Text>
+      {/* TODO: Add a retry button? */}
+    </View>
+  );
+
+  // Display message when no products are found
+  const renderEmpty = () => (
+    <View style={styles.centerStatus}>
+      <Text>No products found.</Text>
+    </View>
+  );
+
+  console.log("[Home.js] Rendering with State:", { isLoading, error, productCount: products.length }); // Log: State before render
 
   return (
-
-    
     <SafeAreaView style={styles.wrapper}>
       {/* Top Navigation Bar */}
       <Navbar />
 
-      <FlatList
-        data={products}
-        numColumns={2}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingBottom: 0 }}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => navigation.navigate('FashionScreen', { product: item })}
-          >
-            <Image source={{ uri: item.image }} style={styles.image} />
-            <Text style={styles.productName}>{item.name}</Text>
-            <Text style={styles.price}>{item.price}</Text>
-          </TouchableOpacity>
-        )}
-        ListHeaderComponent={
-          <>
-            {/* Hero Banner */}
-            <ImageBackground
-              source={{ uri: 'https://img.freepik.com/free-photo/portrait-young-japanese-woman-with-jacket_23-2148870732.jpg' }}
-              style={styles.banner}
-            >
-              <View style={styles.overlay} />
-              <Text style={styles.bannerText}>LUXURY{"\n"}FASHION{"\n"}& ACCESSORIES</Text>
-              <TouchableOpacity style={styles.button}>
-                <Text style={styles.buttonText}>EXPLORE COLLECTION</Text>
-              </TouchableOpacity>
-            </ImageBackground>
-
-            {/* New Arrival Section */}
-            <Text style={styles.header}>NEW ARRIVAL</Text>
-
-            {/* Category Tabs */}
-            <View style={styles.categoryContainer}>
-              {categories.map((category, index) => (
-                <TouchableOpacity key={index} onPress={() => setSelectedCategory(category)}>
-                  <Text style={[styles.categoryText, selectedCategory === category && styles.activeCategory]}>
-                    {category}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </>
-        }
-        ListFooterComponent={
-          <>
-            {/* Explore More + Brand Grid */}
-            <View style={{ marginVertical: 40, alignItems: 'center' }}>
-              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20, marginTop: -80 }}>
-                <Text style={{ fontSize: 16, fontFamily: 'TenorSans', marginRight: 8, marginTop: 50, }}>Explore More</Text>
-              </TouchableOpacity>
-              <View style={styles.divider} />
-              <View style={styles.brandGrid}>
-                <Text style={styles.brand}>PRADA</Text>
-                <Text style={styles.brand}>BURBERRY</Text>
-                <Text style={styles.brand}>BOSS</Text>
-                <Text style={styles.brandItalic}>Cartier</Text>
-                <Text style={styles.brand}>GUCCI</Text>
-                <Text style={styles.brand}>TIFFANY & CO.</Text>
-              </View>
-              <View style={styles.divider} />
-            </View>
-
-            {/* Collections Section */}
-            <View style={styles.collectionsSection}>
-              <Text style={styles.collectionsTitle}>COLLECTIONS</Text>
+      {/* Conditionally render based on loading/error state */}
+      {isLoading ? renderLoading() : error ? renderError() : (
+        <FlatList
+          data={products}
+          numColumns={2}
+          keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+          contentContainerStyle={{ paddingBottom: 0 }}
+          renderItem={renderProductItem}
+          ListHeaderComponent={
+            <>
+              {/* Hero Banner */}
               <ImageBackground
-                source={{ uri: 'https://medevel.com/content/images/size/w960/2025/01/Spectrum-Hoodie-Collection.jpeg' }}
-                style={styles.collectionBanner}
-                imageStyle={{ borderRadius: 10 }}
+                source={{ uri: 'https://img.freepik.com/free-photo/portrait-young-japanese-woman-with-jacket_23-2148870732.jpg' }}
+                style={styles.banner}
               >
-                <View style={styles.offerOverlay}>
-                  <Text style={styles.offerText}>Flat</Text>
-                  <Text style={styles.offerPercent}>50%</Text>
-                  <Text style={styles.offerText}>OFF</Text>
-                </View>
+                <View style={styles.overlay} />
+                <Text style={styles.bannerText}>LUXURY{"\n"}FASHION{"\n"}& ACCESSORIES</Text>
+                <TouchableOpacity style={styles.button}>
+                  <Text style={styles.buttonText}>EXPLORE COLLECTION</Text>
+                </TouchableOpacity>
               </ImageBackground>
-              <TouchableOpacity style={styles.buyNowBtn} onPress={() => setModalVisible(true)}>
-                <Text style={styles.buyNowText}>Buy now</Text>
-              </TouchableOpacity>
-              <BuyNowModal
-                visible={modalVisible}
-                onClose={() => setModalVisible(false)}
-                product={{ name: 'Jacket', price: 6000, image: require('../../assets/products/jacket333.png') }}
-                />
-              {/* Trending */}
-              <Text style={styles.trendingTitle}>Trending Outfit of The week</Text>
-              <Text style={styles.trendingDesc}>
-                From run away to real life: Fashion trends you need to know.{"\n"}
-                Stay ahead of the curve with these trendsetting outfit.
-              </Text>
-              <View style={styles.trendingGrid}>
-                <Image
-                  source={{ uri: 'https://assets.lummi.ai/assets/Qmd3CTTcqTcWQaCuqFMassWyWyQHX1XYz7XPjv3FKr2pgc?auto=format&w=640' }}
-                  style={styles.trendingImageLarge}
-                />
-                <View style={styles.trendingColumn}>
-                  <Image
-                    source={{ uri: 'https://assets.lummi.ai/assets/QmPkoHyfcukb39rhXZ8bozBToZmZJt1cJsETHMr6sdi7sC?auto=format&w=640' }}
-                    style={styles.trendingImageSmall}
-                  />
-                  <Image
-                    source={{ uri: 'https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcTYG4p65MwDuuR7lmc5I90htD9T6iaqtea8_qwuWu2QW24fnYyD' }}
-                    style={styles.trendingImageSmall}
-                  />
-                </View>
-              </View>
-              <TouchableOpacity style={styles.seeMoreBtn}
-                onPress={() => navigation.navigate('FashionScreen')}>
 
-                <Text style={styles.seeMoreText}>See More Trending</Text>
-              </TouchableOpacity>
-            </View>
+              {/* New Arrival Section */}
+              <Text style={styles.header}>NEW ARRIVAL</Text>
 
-            {/* Just For You Section */}
-            <View style={styles.justForYouSection}>
-              <Text style={styles.justForYouTitle}>JUST FOR YOU</Text>
-              <View style={styles.divider} />
-              <FlatList
-                data={justForYouData}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                pagingEnabled
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <View style={styles.productCard}>
-                    <Image source={{ uri: item.image }} style={styles.productImage} />
-                    <Text style={styles.productName}>{item.name}</Text>
-                    <Text style={styles.productPrice}>{item.price}</Text>
-                  </View>
-                )}
-              />
-              <View style={styles.dotsContainer}>
-                <Text style={styles.dot}>●</Text>
-                <Text style={styles.dotInactive}>○</Text>
-                <Text style={styles.dotInactive}>○</Text>
-              </View>
-            </View>
-
-            {/* @TRENDING Section */}
-            <View style={styles.container2}>
-              <Text style={styles.title2}>@ T R E N D I N G</Text>
-              <View style={styles.hashtagContainer2}>
-                {hashtags.map((tag, index) => (
-                  <View key={index} style={styles.hashtag2}>
-                    <Text style={styles.hashtagText2}>{tag}</Text>
-                  </View>
+              {/* Category Tabs */}
+              <View style={styles.categoryContainer}>
+                {categories.map((category, index) => (
+                  <TouchableOpacity key={index} onPress={() => setSelectedCategory(category)}>
+                    <Text style={[styles.categoryText, selectedCategory === category && styles.activeCategory]}>
+                      {category}
+                    </Text>
+                  </TouchableOpacity>
                 ))}
               </View>
-              <View style={styles.card2}>
-                <View style={styles.logo2}>
-                  <Text style={[styles.star, { color: 'orange' }]}>✦</Text>
-                  <Text style={styles.brandText2}>Fashion{'\n'}Trend</Text>
-                  <Text style={[styles.star, { color: 'blue' }]}>✦</Text>
+
+              {/* Add padding below categories if FlatList content starts too close */}
+              <View style={{ height: 10 }} />
+            </>
+          }
+          ListFooterComponent={
+            <>
+              {/* Explore More + Brand Grid */}
+              <View style={{ marginVertical: 40, alignItems: 'center' }}>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20, marginTop: -80 }}>
+                  <Text style={{ fontSize: 16, fontFamily: 'TenorSans', marginRight: 8, marginTop: 50, }}>Explore More</Text>
+                </TouchableOpacity>
+                <View style={styles.divider} />
+                <View style={styles.brandGrid}>
+                  <Text style={styles.brand}>PRADA</Text>
+                  <Text style={styles.brand}>BURBERRY</Text>
+                  <Text style={styles.brand}>BOSS</Text>
+                  <Text style={styles.brandItalic}>Cartier</Text>
+                  <Text style={styles.brand}>GUCCI</Text>
+                  <Text style={styles.brand}>TIFFANY & CO.</Text>
                 </View>
-                <Text style={styles.subtitle2}>
-                  Making a luxurious lifestyle accessible{'\n'}
-                  for a generous group of women is our{'\n'}daily drive.
+                <View style={styles.divider} />
+              </View>
+
+              {/* Collections Section */}
+              <View style={styles.collectionsSection}>
+                <Text style={styles.collectionsTitle}>COLLECTIONS</Text>
+                <ImageBackground
+                  source={{ uri: 'https://medevel.com/content/images/size/w960/2025/01/Spectrum-Hoodie-Collection.jpeg' }}
+                  style={styles.collectionBanner}
+                  imageStyle={{ borderRadius: 10 }}
+                >
+                  <View style={styles.offerOverlay}>
+                    <Text style={styles.offerText}>Flat</Text>
+                    <Text style={styles.offerPercent}>50%</Text>
+                    <Text style={styles.offerText}>OFF</Text>
+                  </View>
+                </ImageBackground>
+                <TouchableOpacity style={styles.buyNowBtn} onPress={() => setModalVisible(true)}>
+                  <Text style={styles.buyNowText}>Buy now</Text>
+                </TouchableOpacity>
+                <BuyNowModal
+                  visible={modalVisible}
+                  onClose={() => setModalVisible(false)}
+                  product={{ name: 'Jacket', price: 6000, image: require('../../assets/products/jacket333.png') }}
+                />
+                {/* Trending */}
+                <Text style={styles.trendingTitle}>Trending Outfit of The week</Text>
+                <Text style={styles.trendingDesc}>
+                  From run away to real life: Fashion trends you need to know.{"\n"}
+                  Stay ahead of the curve with these trendsetting outfit.
                 </Text>
-                <View style={styles.divider2} />
-                <View style={styles.features2}>
-                  {features.map((item, index) => (
-                    <View key={index} style={styles.featureItem2}>
-                      <Image source={item.icon} style={styles.featureIcon2} />
-                      <Text style={styles.featureText2}>{item.text}</Text>
+                <View style={styles.trendingGrid}>
+                  <Image
+                    source={{ uri: 'https://assets.lummi.ai/assets/Qmd3CTTcqTcWQaCuqFMassWyWyQHX1XYz7XPjv3FKr2pgc?auto=format&w=640' }}
+                    style={styles.trendingImageLarge}
+                  />
+                  <View style={styles.trendingColumn}>
+                    <Image
+                      source={{ uri: 'https://assets.lummi.ai/assets/QmPkoHyfcukb39rhXZ8bozBToZmZJt1cJsETHMr6sdi7sC?auto=format&w=640' }}
+                      style={styles.trendingImageSmall}
+                    />
+                    <Image
+                      source={{ uri: 'https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcTYG4p65MwDuuR7lmc5I90htD9T6iaqtea8_qwuWu2QW24fnYyD' }}
+                      style={styles.trendingImageSmall}
+                    />
+                  </View>
+                </View>
+                <TouchableOpacity style={styles.seeMoreBtn}
+                  onPress={() => navigation.navigate('FashionScreen')}>
+
+                  <Text style={styles.seeMoreText}>See More Trending</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Just For You Section */}
+              <View style={styles.justForYouSection}>
+                <Text style={styles.justForYouTitle}>JUST FOR YOU</Text>
+                <View style={styles.divider} />
+                <View style={styles.dotsContainer}>
+                  <Text style={styles.dot}>●</Text>
+                  <Text style={styles.dotInactive}>○</Text>
+                  <Text style={styles.dotInactive}>○</Text>
+                </View>
+              </View>
+
+              {/* @TRENDING Section */}
+              <View style={styles.container2}>
+                <Text style={styles.title2}>@ T R E N D I N G</Text>
+                <View style={styles.hashtagContainer2}>
+                  {hashtags.map((tag, index) => (
+                    <View key={index} style={styles.hashtag2}>
+                      <Text style={styles.hashtagText2}>{tag}</Text>
                     </View>
                   ))}
                 </View>
-                <Image source={require('../../assets/icons/deco.png')} style={styles.footerDeco2} />
+                <View style={styles.card2}>
+                  <View style={styles.logo2}>
+                    <Text style={[styles.star, { color: 'orange' }]}>✦</Text>
+                    <Text style={styles.brandText2}>Fashion{'\n'}Trend</Text>
+                    <Text style={[styles.star, { color: 'blue' }]}>✦</Text>
+                  </View>
+                  <Text style={styles.subtitle2}>
+                    Making a luxurious lifestyle accessible{'\n'}
+                    for a generous group of women is our{'\n'}daily drive.
+                  </Text>
+                  <View style={styles.divider2} />
+                  <View style={styles.features2}>
+                    {features.map((item, index) => (
+                      <View key={index} style={styles.featureItem2}>
+                        <Image source={item.icon} style={styles.featureIcon2} />
+                        <Text style={styles.featureText2}>{item.text}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <Image source={require('../../assets/icons/deco.png')} style={styles.footerDeco2} />
+                </View>
               </View>
-            </View>
 
-            {/* FOLLOW US Section */}
-            <View style={styles.followSection3}>
-              <Text style={styles.followTitle3}>FOLLOW US</Text>
-              <Image source={require('../../assets/icons/instagram.png')} style={styles.socialIconLarge3} />
-              <View style={styles.profileRow3}>
-                <View style={styles.profileCard3}>
-                  <Image source={require('../../assets/images/ando.jpg')} style={styles.profileImage3} />
-                  <Text style={styles.profileName3}>@ando</Text>
+              {/* FOLLOW US Section */}
+              <View style={styles.followSection3}>
+                <Text style={styles.followTitle3}>FOLLOW US</Text>
+                <Image source={require('../../assets/icons/instagram.png')} style={styles.socialIconLarge3} />
+                <View style={styles.profileRow3}>
+                  <View style={styles.profileCard3}>
+                    <Image source={require('../../assets/images/ando.jpg')} style={styles.profileImage3} />
+                    <Text style={styles.profileName3}>@ando</Text>
+                  </View>
+                  <View style={styles.profileCard3}>
+                    <Image source={require('../../assets/images/edradan.jpg')} style={styles.profileImage3} />
+                    <Text style={styles.profileName3}>@edradan</Text>
+                  </View>
                 </View>
-                <View style={styles.profileCard3}>
-                  <Image source={require('../../assets/images/edradan.jpg')} style={styles.profileImage3} />
-                  <Text style={styles.profileName3}>@edradan</Text>
+                <View style={styles.footerContainer3}>
+                  <View style={styles.footerIcons3}>
+                    <Image source={require('../../assets/icons/twitter.png')} style={styles.footerIcon3} />
+                    <Image source={require('../../assets/icons/instagram2.png')} style={styles.footerIcon3} />
+                    <Image source={require('../../assets/icons/youtube.png')} style={styles.footerIcon3} />
+                  </View>
+                  <View style={styles.footerDivider3} />
+                  <Text style={styles.footerText3}>support@fashion.trend</Text>
+                  <Text style={styles.footerText3}>+63 912 3456 789</Text>
+                  <Text style={styles.footerText3}>08:00 - 22:00 - Everyday</Text>
+                  <View style={styles.footerDivider3} />
+                  <View style={styles.footerLinks3}>
+                    <Text style={styles.footerLink3}>About</Text>
+
+                    <TouchableOpacity onPress={() => navigation.navigate('Contact')}>
+                      <Text style={styles.footerLink3}>Contact</Text>
+                    </TouchableOpacity>
+
+                    <Text style={styles.footerLink3}>Blog</Text>
+                  </View>
+                  <Text style={styles.copyText3}>
+                    Copyright© fashion.trend All Rights Reserved.
+                  </Text>
                 </View>
               </View>
-              <View style={styles.footerContainer3}>
-                <View style={styles.footerIcons3}>
-                  <Image source={require('../../assets/icons/twitter.png')} style={styles.footerIcon3} />
-                  <Image source={require('../../assets/icons/instagram2.png')} style={styles.footerIcon3} />
-                  <Image source={require('../../assets/icons/youtube.png')} style={styles.footerIcon3} />
-                </View>
-                <View style={styles.footerDivider3} />
-                <Text style={styles.footerText3}>support@fashion.trend</Text>
-                <Text style={styles.footerText3}>+63 912 3456 789</Text>
-                <Text style={styles.footerText3}>08:00 - 22:00 - Everyday</Text>
-                <View style={styles.footerDivider3} />
-                <View style={styles.footerLinks3}>
-                  <Text style={styles.footerLink3}>About</Text>
-
-                  <TouchableOpacity onPress={() => navigation.navigate('Contact')}>
-                    <Text style={styles.footerLink3}>Contact</Text>
-                  </TouchableOpacity>
-
-                  <Text style={styles.footerLink3}>Blog</Text>
-                </View>
-                <Text style={styles.copyText3}>
-                  Copyright© fashion.trend All Rights Reserved.
-                </Text>
-              </View>
-            </View>
-          </>
-        }
-      />
+            </>
+          }
+          ListEmptyComponent={renderEmpty}
+        />
+      )}
 
       {/* Bottom Navigation */}
-      <BottomNavBar active="Bag" navigation={navigation} />
+      <View style={styles.bottomNavWrapper}>
+        <BottomNavBar active="Bag" navigation={navigation} />
+      </View>
     </SafeAreaView>
   );
 };
@@ -389,21 +424,33 @@ const styles = StyleSheet.create({
 
   // Grid
   grid: { paddingBottom: 50 },
-  card: { flex: 1, alignItems: 'center', marginBottom: 20, paddingHorizontal: 10 },
-  image: { width: 150, height: 200, borderRadius: 10 },
+  card: {
+    flex: 1,
+    margin: 5,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    overflow: 'hidden',
+    maxWidth: '48%',
+  },
+  image: {
+    width: '100%',
+    height: 180,
+    resizeMode: 'cover',
+  },
   productName: {
-    fontSize: 14,
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    fontSize: 13,
     fontFamily: 'TenorSans',
-    textAlign: 'center',
-    marginTop: 8,
-    color: '#444',
-    paddingHorizontal: 10,
+    minHeight: 40,
   },
   price: {
-    fontSize: 16,
-    fontFamily: 'BodoniModa',
-    color: '#D2691E',
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    fontSize: 14,
+    fontFamily: 'TenorSans',
     fontWeight: 'bold',
+    color: '#8A2BE2',
   },
 
   // Collections
@@ -472,19 +519,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#aaa',
     marginVertical: 10,
-  },
-  productCard: { width: 250, marginRight: 20, alignItems: 'center' },
-  productImage: {
-    width: 250,
-    height: 300,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  productPrice: {
-    fontFamily: 'Itim',
-    color: '#f97316',
-    fontSize: 14,
-    marginTop: 4,
   },
   dotsContainer: { flexDirection: 'row', marginTop: 10 },
   dot: { fontSize: 10, marginHorizontal: 3, color: '#000' },
@@ -629,8 +663,21 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   footerDeco2: { width: 80, height: 80, resizeMode: 'contain', marginTop: 10 },
+
+  // New styles for loading/error/empty messages
+  centerStatus: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    marginTop: 50,
+    marginBottom: 50,
+  },
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
+    marginBottom: 5,
+  },
 });
-
-
 
 export default Home;

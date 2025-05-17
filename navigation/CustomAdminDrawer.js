@@ -4,18 +4,23 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { DrawerContentScrollView } from '@react-navigation/drawer';
 import { Ionicons, FontAwesome5, Feather, MaterialIcons } from '@expo/vector-icons';
 import LogoutModal from '../components/admin/LogoutModal';
+import { useAuth } from '../src/context/AuthContext';
+
 const CustomAdminDrawer = ({ navigation }) => {
   const [logoutVisible, setLogoutVisible] = useState(false);
+  const { adminLogout } = useAuth();
 
-  const handleConfirmLogout = () => {
+  const handleConfirmLogout = async () => {
+    await adminLogout();
     setLogoutVisible(false);
-    navigation.navigate('FashionTrend'); // 👈 Navigate to FashionTrendScreen
   };
 
   return (
     <DrawerContentScrollView contentContainerStyle={styles.container}>
       <Text style={styles.logo}>
-        <Text style={styles.star}>★</Text> FASHION{"\n"}TREND <Text style={styles.blueStar}>★</Text>
+        <Text style={styles.star}>★</Text>
+        <Text> FASHION{"\n"}TREND </Text>
+        <Text style={styles.blueStar}>★</Text>
       </Text>
 
       <TouchableOpacity style={styles.item} onPress={() => navigation.navigate('Dashboard')}>

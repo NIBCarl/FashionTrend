@@ -6,9 +6,20 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  ActivityIndicator,
+  Alert
 } from 'react-native';
+import { useAuth } from '../../src/context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNotifications } from '../../src/context/NotificationContext';
+
+const ADMIN_NOTIFICATIONS_KEY = 'admin_notifications'; // Key for admin notifications
 
 export default function RegisterModal({ navigation }) {
+  const { isLoading: contextLoading, error, setError, clearError } = useAuth();
+  const { addNotification } = useNotifications();
+  const [isRegistering, setIsRegistering] = useState(false);
+
   const [form, setForm] = useState({
     firstname: '',
     lastname: '',
@@ -22,23 +33,82 @@ export default function RegisterModal({ navigation }) {
 
   const handleChange = (key, value) => {
     setForm({ ...form, [key]: value });
+    if (error) clearError();
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     const { firstname, lastname, phone, password, confirmPassword } = form;
+    const email = phone;
 
-    if (!firstname || !lastname || !phone || !password || !confirmPassword) {
-      alert('Please fill all required fields');
-    } else if (password !== confirmPassword) {
-      alert('Passwords do not match');
-    } else {
-      navigation.replace('DrawerScreens');
+    if (!firstname || !lastname || !email || !password || !confirmPassword) {
+      Alert.alert('Error', 'Please fill all required fields');
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+    
+    setIsRegistering(true);
+    clearError();
+
+    try {
+      const existingUser = await AsyncStorage.getItem(`user_${email}`);
+      if (existingUser) {
+        throw new Error('User with this email already exists.');
+      }
+
+      const passwordHash = password;
+
+      const userData = {
+        name: `${firstname} ${lastname}`,
+        email: email,
+        passwordHash: passwordHash,
+        middlename: form.middlename,
+        gender: form.gender,
+        age: form.age,
+        registeredAt: new Date().toISOString(),
+      };
+
+      await AsyncStorage.setItem(`user_${email}`, JSON.stringify(userData));
+      console.log(`[RegisterModal] User ${email} registered locally.`);
+
+      // --- Add Admin Notification for New User --- 
+      try {
+        addNotification({
+            title: 'New Customer Registered!',
+            message: `User ${userData.name} (${email}) just signed up.`,
+            type: 'user',
+            itemId: email, // Using email as the identifier for the user
+        });
+        console.log(`[RegisterModal] Admin notification for new user ${email} sent via context.`);
+      } catch (notifError) {
+          console.error("[RegisterModal] Error sending admin notification for new user via context:", notifError);
+      }
+      // --- End Admin Notification --- 
+
+      Alert.alert('Success', 'Registration successful! Please sign in.');
+      navigation.navigate('SignInModal');
+
+    } catch (err) {
+      console.error("Local Registration error:", err);
+      setError(err.message || 'Registration failed');
+    } finally {
+      setIsRegistering(false);
     }
   };
+
+  const isLoading = contextLoading || isRegistering;
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Register Here</Text>
+
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
 
       <View style={styles.row}>
         <View style={styles.inputWrapper}>
@@ -47,6 +117,7 @@ export default function RegisterModal({ navigation }) {
             style={styles.input}
             value={form.firstname}
             onChangeText={(val) => handleChange('firstname', val)}
+            editable={!isLoading}
           />
         </View>
         <View style={styles.inputWrapper}>
@@ -55,6 +126,7 @@ export default function RegisterModal({ navigation }) {
             style={styles.input}
             value={form.lastname}
             onChangeText={(val) => handleChange('lastname', val)}
+            editable={!isLoading}
           />
         </View>
       </View>
@@ -66,6 +138,7 @@ export default function RegisterModal({ navigation }) {
             style={styles.input}
             value={form.middlename}
             onChangeText={(val) => handleChange('middlename', val)}
+            editable={!isLoading}
           />
         </View>
         <View style={styles.inputWrapper}>
@@ -74,6 +147,7 @@ export default function RegisterModal({ navigation }) {
             style={styles.input}
             value={form.gender}
             onChangeText={(val) => handleChange('gender', val)}
+            editable={!isLoading}
           />
         </View>
         <View style={styles.inputWrapper}>
@@ -83,17 +157,20 @@ export default function RegisterModal({ navigation }) {
             value={form.age}
             onChangeText={(val) => handleChange('age', val)}
             keyboardType="numeric"
+            editable={!isLoading}
           />
         </View>
       </View>
 
       <View style={styles.inputWrapperFull}>
-        <Text style={styles.label}>Phone Number</Text>
+        <Text style={styles.label}>Email (Phone Number)</Text>
         <TextInput
           style={styles.fullInput}
           value={form.phone}
           onChangeText={(val) => handleChange('phone', val)}
-          keyboardType="phone-pad"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          editable={!isLoading}
         />
       </View>
 
@@ -104,6 +181,7 @@ export default function RegisterModal({ navigation }) {
           secureTextEntry
           value={form.password}
           onChangeText={(val) => handleChange('password', val)}
+          editable={!isLoading}
         />
       </View>
 
@@ -114,16 +192,28 @@ export default function RegisterModal({ navigation }) {
           secureTextEntry
           value={form.confirmPassword}
           onChangeText={(val) => handleChange('confirmPassword', val)}
+          editable={!isLoading}
         />
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleRegister}>
+      <TouchableOpacity
+        style={[styles.button, isLoading && styles.buttonDisabled]}
+        onPress={handleRegister}
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
         <Text style={styles.buttonText}>Register</Text>
+        )}
       </TouchableOpacity>
 
       <Text style={styles.switchText}>
         Already have an account?{' '}
-        <Text style={styles.linkText} onPress={() => navigation.navigate('SignInModal')}>
+        <Text
+          style={styles.linkText}
+          onPress={() => !isLoading && navigation.navigate('SignInModal')}
+        >
           Sign in
         </Text>
       </Text>
@@ -142,8 +232,20 @@ const styles = StyleSheet.create({
     title: {
       fontSize: 34,
       fontFamily: 'IslandMoments',
-      marginBottom: 30,
+      marginBottom: 20,
       color: '#000',
+    },
+    errorContainer: {
+      width: '100%',
+      padding: 10,
+      backgroundColor: '#ffcccc',
+      borderRadius: 5,
+      marginBottom: 15,
+      alignItems: 'center'
+    },
+    errorText: {
+      color: '#cc0000',
+      textAlign: 'center'
     },
     row: {
       flexDirection: 'row',
@@ -188,6 +290,11 @@ const styles = StyleSheet.create({
       paddingVertical: 15,
       paddingHorizontal: 40,
       borderRadius: 15,
+      minWidth: 150,
+      alignItems: 'center'
+    },
+    buttonDisabled: {
+      backgroundColor: '#cccccc'
     },
     buttonText: {
       color: '#fff',

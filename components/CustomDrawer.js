@@ -1,61 +1,92 @@
-import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Image, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
-import FashionScreen from './client/FashionScreen';
-import { createDrawerNavigator } from '@react-navigation/drawer';
-import Dashboard from './admin/Dashboard';
-import Order from './admin/Order';
-const Drawer = createDrawerNavigator();
+import { useAuth } from '../src/context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CustomDrawer = (props) => {
+  const { logout, isLoading: authLoading, loggedInUserEmail } = useAuth();
+  const [userData, setUserData] = useState({ name: '', email: '' });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!loggedInUserEmail) {
+        setIsLoading(false);
+        return;
+      }
+      setIsLoading(true);
+      try {
+        const userDataString = await AsyncStorage.getItem(`user_${loggedInUserEmail}`);
+        if (userDataString) {
+          const storedData = JSON.parse(userDataString);
+          setUserData({
+            name: storedData.name || 'User Name',
+            email: loggedInUserEmail,
+          });
+        } else {
+          setUserData({ name: 'User Name', email: loggedInUserEmail });
+        }
+      } catch (error) {
+        console.error("Failed to fetch user data for drawer:", error);
+        setUserData({ name: 'Error Loading', email: loggedInUserEmail });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchUserData();
+  }, [loggedInUserEmail]);
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            await logout();
+          }
+        }
+      ]
+    );
+  };
+
+  const isOverallLoading = authLoading || isLoading;
+
   return (
     <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1 }}>
       <View style={styles.header}>
         <Image
-          source={require('../assets/images/ando.jpg')} // or use a URI if from the web
+          source={require('../assets/images/ando.jpg')}
           style={styles.avatar}
         />
-        <Text style={styles.name}>Donalyn Ando</Text>
-        <Text style={styles.email}>dando@ssct.edu.ph</Text>
+        {isLoading ? (
+          <Text style={styles.name}>Loading...</Text>
+        ) : (
+          <>
+            <Text style={styles.name}>{userData.name}</Text>
+            <Text style={styles.email}>{userData.email}</Text>
+          </>
+        )}
       </View>
 
-      <View style={styles.menu}>
-        <TouchableOpacity style={styles.item} onPress={() => props.navigation.navigate('Home')}>
-          <Icon name="home-outline" size={22} />
-          <Text style={styles.itemText}>Home</Text>
-        </TouchableOpacity>
+      <DrawerItemList {...props} />
 
-        <TouchableOpacity style={styles.item} onPress={() => props.navigation.navigate('FashionScreen')}>
-          <Icon name="document-text-outline" size={22} />
-          <Text style={styles.itemText}>New</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.item} onPress={() => props.navigation.navigate('FashionScreenMore')}>
-          <Icon name="chatbubble-ellipses-outline" size={22} />
-          <Text style={styles.itemText}>Trends</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.item} onPress={() => props.navigation.navigate('ProfileScreen')}>
-          <Icon name="person-outline" size={22} />
-          <Text style={styles.itemText}>Profile</Text>
+      <View style={styles.logoutSection}>
+        <TouchableOpacity
+          style={styles.item}
+          onPress={handleLogout}
+          disabled={isOverallLoading}
+        >
+          <Icon name="log-out-outline" size={22} color={isOverallLoading ? '#ccc' : '#000'} />
+          <Text style={[styles.itemText, isOverallLoading && { color: '#ccc' }]}>Logout</Text>
         </TouchableOpacity>
       </View>
     </DrawerContentScrollView>
-  );
-};
-
-const AdminNavigator = () => {
-  return (
-    <Drawer.Navigator
-      drawerContent={() => <CustomAdminDrawer />}
-      screenOptions={{ headerShown: false }}
-    >
-      <Drawer.Screen name="Dashboard" component={Dashboard} />
-      <Drawer.Screen name="Orders" component={Order} />
-      <Drawer.Screen name="Products" component={Products} />
-      <Drawer.Screen name="Customers" component={Customers} />
-    </Drawer.Navigator>
   );
 };
 
@@ -70,6 +101,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
+    marginBottom: 10,
   },
   name: {
     marginTop: 10,
@@ -80,17 +112,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
   },
-  menu: {
-    padding: 20,
-  },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    paddingVertical: 15,
+    paddingHorizontal: 20,
   },
   itemText: {
-    marginLeft: 10,
+    marginLeft: 15,
     fontSize: 16,
+  },
+  logoutSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#ccc',
+    marginTop: 20,
+    paddingTop: 10,
   },
 });
 

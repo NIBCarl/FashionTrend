@@ -22,8 +22,12 @@ const Navbar = () => {
     </View>
 
     <View style={styles.navIcons}>
+      <TouchableOpacity onPress={() => navigation.navigate('SearchClient')}>
       <Icon name="search" size={24} color="black" style={styles.icon} />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => navigation.navigate('BagScreen')}>
       <Icon name="shopping-bag" size={24} color="black" />
+      </TouchableOpacity>
     </View>
   </View>
   );

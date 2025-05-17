@@ -101,7 +101,7 @@ const FashionTrendScreen = () => {
           <Text style={styles.buttonText}>Client</Text>
         </TouchableOpacity>
         {/* ADMIN TEXT */}
-        <TouchableOpacity onPress={() => navigation.navigate("AdminDrawer", { screen: "Dashboard" })}>
+        <TouchableOpacity onPress={() => navigation.navigate("AdminSignInModal")}>
         <Text style={styles.adminText}>Admin</Text>
         </TouchableOpacity>
       </View>
